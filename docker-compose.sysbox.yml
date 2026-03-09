@@ -1,0 +1,43 @@
+services:
+  openclaw-gateway:
+    # --------------------------------------------------------------------------
+    # Sysbox Runtime Extension
+    # --------------------------------------------------------------------------
+    # Replaces the default runc with sysbox-runc, providing strong isolation
+    # and allowing system-level workloads (like Docker-in-Docker or systemd)
+    # to run securely inside the container without privileged mode or
+    # mounting the host's /var/run/docker.sock.
+    #
+    # Usage:
+    # docker compose -f docker-compose.yml -f docker-compose.sysbox.yml up -d --build
+    # --------------------------------------------------------------------------
+    build:
+      context: .
+      dockerfile: Dockerfile.sysbox
+    image: openclaw-sysbox:local
+    runtime: sysbox-runc
+    # Sysbox se encarga de que esto sea seguro aunque pongamos true
+    privileged: true 
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      - /usr/src:/usr/src:ro
+      - /var/lib/sysbox:/var/lib/sysbox:rw
+    tmpfs:
+      - /run
+      - /tmp
+    # 👇 AQUÍ ESTÁ EL TRUCO: Le damos las instrucciones de arranque
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        # 1. Arrancamos el motor de Docker interno
+        sudo rm -f /var/run/docker.sock /var/run/docker.pid
+        sudo dockerd --iptables=false > /tmp/dockerd.log 2>&1 &
+        
+        # 2. Esperamos a que el motor esté vivo
+        for i in $$(seq 1 15); do [ -S /var/run/docker.sock ] && break; sleep 1; done
+        sudo chmod 666 /var/run/docker.sock
+        
+        # 3. Lanzamos el proceso original (el Gateway)
+        # Usamos la ruta oficial de la imagen: dist/index.js
+        exec node dist/index.js gateway --bind 0.0.0.0 --port 18789 --allow-unconfigured

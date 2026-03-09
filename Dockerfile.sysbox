@@ -1,0 +1,10 @@
+# Usamos la imagen oficial como base
+FROM ghcr.io/openclaw/openclaw:latest
+
+# Instalamos el motor de Docker (para permitir Docker-in-Docker via Sysbox)
+USER root
+RUN apt-get update && apt-get install -y docker.io sudo \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "node ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+USER node

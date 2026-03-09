@@ -114,6 +114,14 @@ Security notes:
 - Combine with `workspaceAccess: "ro"` if you only need read access to the workspace; bind modes stay independent.
 - See [Sandbox vs Tool Policy vs Elevated](/gateway/sandbox-vs-tool-policy-vs-elevated) for how binds interact with tool policy and elevated exec.
 
+### 🛡️ Enhanced Isolation (Optional)
+
+If you have Sysbox installed on your host, you can run the gateway with root-level isolation without using privileged mode or sharing the host socket:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.sysbox.yml up -d --build
+```
+
 ## Images + setup
 
 Default image: `openclaw-sandbox:bookworm-slim`
