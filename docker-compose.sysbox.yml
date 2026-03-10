@@ -1,43 +1,49 @@
 services:
   openclaw-gateway:
     # --------------------------------------------------------------------------
-    # Sysbox Runtime Extension
+    # Sysbox Runtime Extension - Versión Corregida (Paths & Syntax)
     # --------------------------------------------------------------------------
-    # Replaces the default runc with sysbox-runc, providing strong isolation
-    # and allowing system-level workloads (like Docker-in-Docker or systemd)
-    # to run securely inside the container without privileged mode or
-    # mounting the host's /var/run/docker.sock.
-    #
-    # Usage:
-    # docker compose -f docker-compose.yml -f docker-compose.sysbox.yml up -d --build
-    # --------------------------------------------------------------------------
+    env_file:
+      - .env
     build:
       context: .
       dockerfile: Dockerfile.sysbox
     image: openclaw-sysbox:local
     runtime: sysbox-runc
-    # Sysbox se encarga de que esto sea seguro aunque pongamos true
+    # Sysbox requiere privileged: true para gestionar las capas de aislamiento
     privileged: true 
     volumes:
       - /lib/modules:/lib/modules:ro
       - /usr/src:/usr/src:ro
       - /var/lib/sysbox:/var/lib/sysbox:rw
+     
     tmpfs:
       - /run
       - /tmp
-    # 👇 AQUÍ ESTÁ EL TRUCO: Le damos las instrucciones de arranque
+    
     entrypoint:
       - /bin/sh
       - -c
       - |
-        # 1. Arrancamos el motor de Docker interno
-        sudo rm -f /var/run/docker.sock /var/run/docker.pid
-        sudo dockerd --iptables=false > /tmp/dockerd.log 2>&1 &
+        # 1.  permisos
         
-        # 2. Esperamos a que el motor esté vivo
-        for i in $$(seq 1 15); do [ -S /var/run/docker.sock ] && break; sleep 1; done
+        sudo chown -R node:node /home/node/.openclaw
+        
+        # 2. Iniciar dockerd
+        sudo rm -f /var/run/docker.sock /var/run/docker.pid
+        sudo dockerd --iptables=false --bridge=none > /tmp/dockerd.log 2>&1 &
+        
+        # 3. Bucle de espera corregido (Doble $$ para que Compose no se líe)
+        timeout=15
+        while [ $$timeout -gt 0 ]; do
+          if [ -S /var/run/docker.sock ]; then break; fi
+          echo "Esperando a dockerd... ($$timeout)"
+          sleep 1
+          timeout=$((timeout-1))
+        done
+        
         sudo chmod 666 /var/run/docker.sock
         
-        # 3. Lanzamos el proceso original (el Gateway)
-        # Usamos la ruta oficial de la imagen: dist/index.js
-        exec node dist/index.js gateway --bind 0.0.0.0 --port 18789 --allow-unconfigured
+        # 4. Lanzar el Gateway
+        echo "✅ OpenClaw Gateway arrancando..."
+        exec node dist/index.js gateway --allow-unconfigured

@@ -1,3 +1,14 @@
+# --- Kai & Lab-IA Local Config ---
+.openclaw/
+openclaw/
+workspace/
+/openclaw/
+/workspace/
+.env
+.env.local
+docker-compose.sysbox.yml
+Dockerfile.sysbox
+# original
 node_modules
 **/node_modules/
 .env
